@@ -36,6 +36,7 @@ function App() {
     }
 
     try {
+      console.log(email,username,password)
       const response = await fetch("http://localhost:8080/auth/signup", {
         method: "POST",
         headers: {
@@ -98,7 +99,7 @@ function App() {
     <div className="form">
       <form onSubmit={handleSubmit}>
       <div className="input-container">
-          <label htmlFor="uname">Username </label>
+          <label htmlFor="uname">email </label>
           <input
             type="text"
             id="uname"

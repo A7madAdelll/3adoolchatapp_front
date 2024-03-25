@@ -3,21 +3,13 @@ import "./styles/Chatappstyle.css";
 import Chattitle from "./Chattitle";
 import Mainchat from "./mainChat";
 import { io } from 'socket.io-client';
-import { useNavigate } from 'react-router-dom';
-import { useLocation } from 'react-router-dom';
-
-
 
 const Chatapp = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { pathname } = location;
-
-  const [mychats, setMychats] = useState([]);
+  const [mychats, setMyChats] = useState([]);
   const [activeChat, setActiveChat] = useState(0);
   const [showMainChat, setShowMainChat] = useState("");
   const [showChatsContainer, setShowChatsContainer] = useState("");
-  const [windowSize, setWindowSize] = useState(""); // Updated variable name
+  const [windowSize, setWindowSize2] = useState("");
   const [token, setToken] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
 
@@ -44,80 +36,119 @@ const Chatapp = () => {
     }));
   };
 
-  const setWindowSizeFunc = () => {
-    var x = window.matchMedia("(max-width: 992px)");
+  const setWindowSize = () => {
+    const x = window.matchMedia("(max-width: 992px)");
     if (x.matches) {
-      setWindowSize("phone");
+      setWindowSize2("phone");
       setShowMainChat("hide");
     } else {
-      setWindowSize("PC");
+      setWindowSize2("PC");
     }
   };
 
-  useEffect(() => {
-    setWindowSizeFunc();
+const ayhaga= (prevChats,data,newmsg) => {
+  const newChats = [...prevChats];
+  console.log(3);
+  // Find the index of the chat where senderID matches either in the first or second half of chatid
+  const chatIndex = newChats.findIndex(chat => {
+    const firstHalf = chat.chatid.substring(0, chat.chatid.length / 2);
+    const secondHalf = chat.chatid.substring(chat.chatid.length / 2);
+    return data.msg.senderID === firstHalf || data.msg.senderID === secondHalf;
+  });
+  console.log(2);
+  // If the chat is found, push the new message
+  if (chatIndex !== -1) {
+    console.log(1);
 
+    newChats[chatIndex].messages.push(newmsg);
+  }
+
+  return newChats;
+}
+
+
+  useEffect(() => {
+    let flag=0;
+    setWindowSize();
+    // Retrieve the token from localStorage
     const storedToken = localStorage.getItem("token");
     console.log(storedToken);
 
+    // Now you can use the token as needed, for example, in headers for API requests
     if (storedToken) {
+      // Your logic here, for example, sending the token in the Authorization header
       fetch("http://localhost:8080/chat3adool/getchats", {
         method: "GET",
         headers: {
           Authorization: `Bearer ${storedToken}`,
           "Content-Type": "application/json",
+          // Add any other headers if needed
         },
       })
         .then((response) => response.json())
         .then((result) => {
           console.log("Data received:", result.chats);
           if (result.chats.length !== 0) {
-            let chatstemp = reformatChats(result.chats);
+            const chatstemp = reformatChats(result.chats);
             console.log(chatstemp);
-            setMychats(chatstemp);
+            setMyChats(chatstemp)
+            console.log(mychats);
+            
           } else {
             console.log("mt");
           }
         })
         .catch((error) => console.error("Error fetching data:", error));
     } else {
+      // Handle the case when the token is not available
       console.error("Token not found in localStorage");
-      navigate(`/login`)
-
     }
 
-    let myid = localStorage.getItem("userId");
+    const myid = localStorage.getItem("userId");
     const socket = io("http://localhost:8080", { autoConnect: false });
-    socket.auth = { "myid": myid };
+    socket.auth = { myid: myid };
     socket.connect();
 
-    socket.on('chats', data => {
-      if (data.action === 'chatadded') {
-        console.log(data);
-        const newChat = {
-          pic: `./pics/sora.jpg`,
-          chatid: data.chat._id,
-          name: data.chat.user1ID == myid ? data.chat.user2name : data.chat.user1name,
-          lastmsg: "",
-          unseenMsgs: 0,
-          messages: [],
-        };
+    // Inside the useEffect hook
+socket.on('chats', data => {
+  if (data.action === 'chatadded') {
+    console.log(data);
+    const newChat = {
+      pic: `./pics/sora.jpg`,
+      chatid: data.chat._id,
+      name: data.chat.user1ID == myid ? data.chat.user2name : data.chat.user1name,
+      lastmsg: "",
+      unseenMsgs: 0,
+      messages: [],
+    };
 
-        setMychats(prevChats => [...prevChats, newChat]);
-        setNewContactEmail("");
-      } else if (data.action === 'msgadded') {
-        let newmsg = {
-          didIsendIt: data.msg.senderID == localStorage.getItem("userId") ? 0 : 1,
-          time: new Date().toLocaleString().slice(0, 24),
-          text: `${data.msg.content}`,
-        };
+    // Use the functional form of setMyChats to ensure you get the latest state
+    setMyChats(prevChats => [...prevChats, newChat]);
+    setNewContactEmail(""); // Clear the input value after adding contact
 
-        let newmsgs = [...mychats];
-        newmsgs[activeChat].messages.push(newmsg);
-        setMychats(newmsgs);
+  } else if (data.action === 'msgadded') {
+console.log("msgadded");
+    let newmsg = {
+      didIsendIt: data.msg.senderID == localStorage.getItem("userId") ? 0 : 1,
+      time: new Date().toLocaleString().slice(0, 24),
+      text: `${data.msg.content}`,
+    };
+
+    setMyChats(p=>{
+      if(flag==0){
+        flag=1;
+        return ayhaga(p,data,newmsg);
+      }
+      else{
+        flag=0;
+        return p;
       }
     });
-  }, [activeChat, mychats]);
+  }
+});
+
+
+  }, []); // Empty dependency array ensures useEffect runs only once on mount
 
   const setactiveChat = (ind) => {
     setActiveChat(ind);
@@ -126,7 +157,7 @@ const Chatapp = () => {
   const addMsg = (newMsg) => {
     let newmsgs = [...mychats];
     newmsgs[activeChat].messages.push(newMsg);
-    setMychats(newmsgs);
+    setMyChats(newmsgs);
 
     const storedToken = localStorage.getItem("token");
 
@@ -146,8 +177,11 @@ const Chatapp = () => {
   };
 
   const swap = () => {
-    setShowChatsContainer(showMainChat);
-    setShowMainChat(showChatsContainer);
+    let a = showChatsContainer;
+    let b = showMainChat;
+    setShowChatsContainer(b);
+    setShowMainChat(a);
+
     console.log(showChatsContainer, showMainChat);
   };
 
@@ -232,15 +266,19 @@ const Chatapp = () => {
           </div>
         </div>
         <div className={`mainChat ${showMainChat}`}>
-          {mychats.length !== 0 ? (
-            <Mainchat swap={swap} addMsg={addMsg} chat={mychats[activeChat]} />
-          ) : (
-            <div>no chats here</div>
-          )}
+          {
+            mychats.length !== 0 ?
+              (<Mainchat
+                swap={swap}
+                addMsg={addMsg}
+                chat={mychats[activeChat]}
+              />) :
+              (<div>no chats here</div>)
+          }
         </div>
       </div>
     </>
   );
-};
+}
 
 export default Chatapp;
